@@ -31,6 +31,10 @@ jobs:
           gradle-version: '9.4.1'
 
       - name: Build debug APK
+        # SKIP_SIGNING bypasses the fork's CI release-keystore requirement. Debug
+        # builds use the default debug key and are installable regardless.
+        env:
+          SKIP_SIGNING: "true"
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
