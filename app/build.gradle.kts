@@ -129,8 +129,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.kitsumed.shizucallrecorder"
-        minSdk = 30
+        applicationId = "com.beri.rashamcalls"
+        minSdk = 31
         targetSdk = 36
         // Keep theses two values hard-coded here and update them per version. (To keep F-Droid compatibility since their parser is very basic)
         versionCode = 19

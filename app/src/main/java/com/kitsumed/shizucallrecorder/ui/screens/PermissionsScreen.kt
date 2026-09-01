@@ -55,8 +55,6 @@ import com.kitsumed.shizucallrecorder.onboarding.OnboardingStatus
 import com.kitsumed.shizucallrecorder.services.callDetection.CallDetectionMode
 import com.kitsumed.shizucallrecorder.system.openAppSettings
 import com.kitsumed.shizucallrecorder.system.openGithubReportIssue
-import com.kitsumed.shizucallrecorder.ui.common.M3DropdownField
-import com.kitsumed.shizucallrecorder.ui.common.OptionItem
 import com.kitsumed.shizucallrecorder.ui.common.ToggleListItem
 import com.kitsumed.shizucallrecorder.ui.theme.ShizuCallRecorderTheme
 import com.kitsumed.shizucallrecorder.ui.viewmodels.PermissionsViewModel
@@ -347,7 +345,6 @@ fun PermissionsContent(
 
                 val globalPermissions = listOf(
                     Triple(stringResource(R.string.permission_notifications_label), stringResource(R.string.permission_notifications_description), status.notificationsGranted to Icons.Default.QuestionAnswer),
-                    Triple(stringResource(R.string.permission_contacts_label), stringResource(R.string.permission_contacts_description), status.contactsGranted to Icons.Default.RecentActors),
                     Triple(stringResource(R.string.permission_battery_label), stringResource(R.string.permission_battery_description), status.batteryExempted to Icons.Default.BatterySaver),
                     Triple(stringResource(R.string.settings_recording_folder_label), stringResource(R.string.permission_storage_description), status.storageSelected to Icons.Default.Folder)
                 )
@@ -363,24 +360,6 @@ fun PermissionsContent(
                 }
 
                 HorizontalDivider() // Call detection specific permissions section
-
-                val detectionOptions = CallDetectionMode.entries.map { mode ->
-                    OptionItem(
-                        key = mode.name,
-                        label = stringResource(mode.titleResId),
-                        description = stringResource(mode.descriptionResId),
-                        enabled = mode.isSupportedOnCurrentApi()
-                    )
-                }
-
-                M3DropdownField(
-                    label = stringResource(R.string.settings_call_detection_method),
-                    selected = detectionOptions.find { it.key == status.callDetectionMode.name } ?: detectionOptions.first(),
-                    options = detectionOptions,
-                    onOptionSelected = { selectedItem ->
-                        onCallDetectionModeChanged(CallDetectionMode.valueOf(selectedItem.key))
-                    }
-                )
 
                 AnimatedContent(
                     targetState = status.callDetectionMode,
@@ -517,12 +496,11 @@ private fun PermissionsScreenPreview() {
             status = OnboardingStatus.Status(
                 disclaimerAccepted = true,
                 notificationsGranted = false,
-                contactsGranted = true,
                 batteryExempted = false,
                 storageSelected = false,
                 shizukuRunning = false,
                 shizukuPermissionGranted = false,
-                callDetectionMode = CallDetectionMode.PhoneState,
+                callDetectionMode = CallDetectionMode.InCallService,
                 callDetectionModeGrantedPermissions = emptySet()
             ),
             onGrantAccessButtonClick = {},

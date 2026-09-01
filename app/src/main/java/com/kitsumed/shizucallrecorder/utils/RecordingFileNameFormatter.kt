@@ -9,7 +9,6 @@
 package com.kitsumed.shizucallrecorder.utils
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.icu.text.SimpleDateFormat
 import androidx.annotation.StringRes
 import com.kitsumed.shizucallrecorder.R
@@ -30,17 +29,17 @@ object RecordingFileNameFormatter {
      * @param supportedModes The set of CallDetectionModes in which this placeholder can be used/may be expected to work.
      */
     enum class FileNamePlaceholder(val tag: String, @param:StringRes val descriptionResId: Int, val supportedModes: Set<CallDetectionMode>)  {
-        DATE("{date}", R.string.placeholder_date_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DATE_YEAR("{date:year}", R.string.placeholder_date_year_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DATE_MONTH("{date:month}", R.string.placeholder_date_month_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DATE_DAY("{date:day}", R.string.placeholder_date_day_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DATE_HOURS("{date:hours}", R.string.placeholder_date_hours_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DATE_MINUTES("{date:minutes}", R.string.placeholder_date_minutes_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DATE_SECONDS("{date:seconds}", R.string.placeholder_date_seconds_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        DIRECTION("{direction}", R.string.placeholder_direction_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        PHONE_NUMBER("{phone_number}", R.string.placeholder_phone_number_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        CALLER_NAME("{caller_name}", R.string.placeholder_caller_name_desc, setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
-        CROSS_COUNTRY("{cross_country}", R.string.placeholder_cross_country_desc,setOf(CallDetectionMode.PhoneState, CallDetectionMode.InCallService)),
+        DATE("{date}", R.string.placeholder_date_desc, setOf(CallDetectionMode.InCallService)),
+        DATE_YEAR("{date:year}", R.string.placeholder_date_year_desc, setOf(CallDetectionMode.InCallService)),
+        DATE_MONTH("{date:month}", R.string.placeholder_date_month_desc, setOf(CallDetectionMode.InCallService)),
+        DATE_DAY("{date:day}", R.string.placeholder_date_day_desc, setOf(CallDetectionMode.InCallService)),
+        DATE_HOURS("{date:hours}", R.string.placeholder_date_hours_desc, setOf(CallDetectionMode.InCallService)),
+        DATE_MINUTES("{date:minutes}", R.string.placeholder_date_minutes_desc, setOf(CallDetectionMode.InCallService)),
+        DATE_SECONDS("{date:seconds}", R.string.placeholder_date_seconds_desc, setOf(CallDetectionMode.InCallService)),
+        DIRECTION("{direction}", R.string.placeholder_direction_desc, setOf(CallDetectionMode.InCallService)),
+        PHONE_NUMBER("{phone_number}", R.string.placeholder_phone_number_desc, setOf(CallDetectionMode.InCallService)),
+        CALLER_NAME("{caller_name}", R.string.placeholder_caller_name_desc, setOf(CallDetectionMode.InCallService)),
+        CROSS_COUNTRY("{cross_country}", R.string.placeholder_cross_country_desc,setOf(CallDetectionMode.InCallService)),
         PACKAGE_NAME("{package_name}", R.string.placeholder_package_name_desc, setOf(CallDetectionMode.InCallService))
     }
 
@@ -91,7 +90,7 @@ object RecordingFileNameFormatter {
             "" // If package name is not available, return empty string.
         } else
         {
-            getAppName(context, metadata.packageName)
+            getAppName(metadata.packageName)
         }
 
         val baseName = template
@@ -113,17 +112,8 @@ object RecordingFileNameFormatter {
     }
 
     /**
-     * Attempts to resolve the user-friendly app name from a package name. If resolution fails, it falls back to returning the package name itself.
+     * Returns the package name as-is. App-label resolution was removed together with the
+     * QUERY_ALL_PACKAGES permission, so the raw package name is used for the {package_name} tag.
      */
-    private fun getAppName(context: Context, packageName: String): String {
-        val pm = context.packageManager
-        return try {
-            val appInfo = pm.getApplicationInfo(packageName, 0)
-            pm.getApplicationLabel(appInfo).toString()
-        } catch (e: PackageManager.NameNotFoundException) {
-            AppLogger.w( "Could not resolve app name for package '$packageName', got NameNotFoundException (privacy restriction?). Returning package name as fallback.")
-            // Fallback: return the package name itself
-            packageName
-        }
-    }
+    private fun getAppName(packageName: String): String = packageName
 }

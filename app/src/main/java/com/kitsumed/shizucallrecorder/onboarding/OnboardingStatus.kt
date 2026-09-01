@@ -29,7 +29,6 @@ object OnboardingStatus {
      *
      * @param disclaimerAccepted        True if the user has accepted the app disclaimer.
      * @param notificationsGranted      True if the app can post notifications.
-     * @param contactsGranted           True if READ_CONTACTS is granted.
      * @param batteryExempted           True if the app is on the battery-optimisation whitelist.
      * @param storageSelected           True if a valid SAF recording folder has been chosen.
      * @param shizukuRunning            True if the Shizuku service is currently active or ShizukuAutoManage was enabled in the app settings.
@@ -40,7 +39,6 @@ object OnboardingStatus {
     data class Status(
         val disclaimerAccepted: Boolean,
         val notificationsGranted: Boolean,
-        val contactsGranted: Boolean,
         val batteryExempted: Boolean,
         val storageSelected: Boolean,
         val shizukuRunning: Boolean,
@@ -54,7 +52,7 @@ object OnboardingStatus {
         fun isComplete(): Boolean {
             // Global App Permissions
             val globalsMet = disclaimerAccepted && notificationsGranted &&
-                    contactsGranted && batteryExempted &&
+                    batteryExempted &&
                     storageSelected && shizukuRunning && shizukuPermissionGranted
 
             // Check if all required permissions for the current call detection mode are granted.
@@ -83,7 +81,6 @@ object OnboardingStatus {
         return Status(
             disclaimerAccepted       = preferences.isDisclaimerAccepted(),
             notificationsGranted     = PermissionChecks.hasNotificationPermission(context),
-            contactsGranted          = PermissionChecks.hasContactsPermission(context),
             batteryExempted          = PermissionChecks.hasBatteryExemption(context),
             storageSelected          = SafHelper.isFolderValid(context, storageUri),
             // Special check here, if the auto-manage option was enabled, users already passed this check, and we can assume app will be able to start/stop Shizuku as needed.

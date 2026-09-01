@@ -8,13 +8,9 @@
 
 package com.kitsumed.shizucallrecorder.system.permissions
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.PowerManager
-import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 
 /**
  * PermissionChecks centralises all runtime permission queries used throughout the app.
@@ -32,23 +28,6 @@ object PermissionChecks {
     }
 
     /**
-     * Returns true if [Manifest.permission.READ_CONTACTS] is granted.
-     *
-     * Required for:
-     *  - [ContactLookup.isKnownContact] queries against the Contacts provider.
-     *  - Loading the contact list in the picker dialog.
-     *
-     * @param context The app context.
-     * @return true if the contacts permission is currently granted.
-     */
-    fun hasContactsPermission(context: Context): Boolean {
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_CONTACTS
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    /**
      * Returns true if the app is exempt from Android's battery-optimisation restrictions.
      *
      * @param context The app context.
@@ -57,15 +36,5 @@ object PermissionChecks {
     fun hasBatteryExemption(context: Context): Boolean {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)
-    }
-
-    /**
-     * Returns true if the app is allowed to draw overlays on top of other apps.
-     *
-     * @param context The app context.
-     * @return true if the app can draw overlays.
-     */
-    fun hasOverlayPermission(context: Context): Boolean {
-        return Settings.canDrawOverlays(context)
     }
 }

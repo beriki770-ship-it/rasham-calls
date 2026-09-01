@@ -9,10 +9,7 @@
 package com.kitsumed.shizucallrecorder.data.call
 
 import android.content.Context
-import android.net.Uri
 import android.os.Parcelable
-import android.provider.ContactsContract
-import com.kitsumed.shizucallrecorder.system.permissions.PermissionChecks
 import com.kitsumed.shizucallrecorder.utils.AppLogger
 import com.kitsumed.shizucallrecorder.utils.PhoneNumberManager
 import kotlinx.coroutines.Dispatchers
@@ -84,16 +81,8 @@ data class EnrichedCallData(
                 // Perform Enrichment & Fetch missing data when possible
                 val standardized = phoneNumberManager.formatToE164(parsedNumber)
                 val crossCountry = phoneNumberManager.isNumberFromDifferentCountry(parsedNumber)
-                var callerName = base.osProvidedCallerName
-                // If the raw call data did not provide us with a contact name, we attempt a lookup ourselves.
-                if (base.osProvidedCallerName.isNullOrBlank()) {
-                    callerName = getContactName(context, raw)
-                    if (callerName != null) {
-                        AppLogger.v( "Found contact name '$callerName' for number '$raw'")
-                    } else {
-                        AppLogger.v( "No contact name found for number '$raw'")
-                    }
-                }
+                // Caller name comes only from the OS/Telecom (contact lookup was removed with READ_CONTACTS).
+                val callerName = base.osProvidedCallerName
 
                 AppLogger.v( "Enriched metadata for number: raw='$raw', standardized='$standardized', crossCountry=$crossCountry, callerName='$callerName'")
                 return@withContext EnrichedCallData(
@@ -105,29 +94,6 @@ data class EnrichedCallData(
                     packageName = base.packageName
                 )
             }
-
-        /**
-         * Looks up the contact name associated with a given phone number, if the app has permission to read contacts.
-         *
-         * @param context The context used to access the ContentResolver and check permissions.
-         * @param phoneNumber The phone number to look up, in any format (e.g. raw or E.164).
-         * @return The contact name if found and permission is granted, or null otherwise.
-         */
-        private fun getContactName(context: Context, phoneNumber: String): String? {
-            if (!PermissionChecks.hasContactsPermission(context)) return null
-
-            val lookupUri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
-            val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
-
-            return context.contentResolver.query(lookupUri, projection, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
-                    if (nameIndex != -1) {
-                        cursor.getString(nameIndex)
-                    } else null
-                } else null
-            }
-        }
 
     }
 }

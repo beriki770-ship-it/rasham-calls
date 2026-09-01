@@ -70,21 +70,16 @@ import com.kitsumed.shizucallrecorder.system.openGithubReportIssue
 import com.kitsumed.shizucallrecorder.system.openGithubWiki
 import com.kitsumed.shizucallrecorder.system.storage.SafHelper
 import com.kitsumed.shizucallrecorder.system.takePersistableFolderPermission
-import com.kitsumed.shizucallrecorder.ui.common.ContactSelectionDialog
 import com.kitsumed.shizucallrecorder.ui.common.FileNameFormatDialog
 import com.kitsumed.shizucallrecorder.ui.common.M3DropdownField
 import com.kitsumed.shizucallrecorder.ui.common.OptionItem
 import com.kitsumed.shizucallrecorder.ui.common.ToggleListItem
 import com.kitsumed.shizucallrecorder.ui.theme.ShizuCallRecorderTheme
-import com.kitsumed.shizucallrecorder.ui.viewmodels.ContactPickerState
-import com.kitsumed.shizucallrecorder.ui.viewmodels.ContactPickerType
-import com.kitsumed.shizucallrecorder.ui.viewmodels.ContactPickerViewModel
 import com.kitsumed.shizucallrecorder.ui.viewmodels.DebugAction
 import com.kitsumed.shizucallrecorder.ui.viewmodels.SettingsActions
 import com.kitsumed.shizucallrecorder.ui.viewmodels.SettingsViewModel
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
-import com.kitsumed.shizucallrecorder.system.permissions.PermissionChecks
 import kotlinx.coroutines.delay
 import org.xmlpull.v1.XmlPullParser
 import java.util.Locale
@@ -106,10 +101,6 @@ fun SettingsScreen(
     // Trigger recomposition when settings change by viewmodel.refresh()
     val updateTrigger by viewModel.updateTrigger.collectAsState()
 
-    // ContactPickerViewModel owns the contact-loading logic and dialog state.
-    val contactPickerViewModel: ContactPickerViewModel = viewModel()
-    val contactPickerState by contactPickerViewModel.contactPickerState.collectAsState()
-
     // Folder picker — PersistentFolderPickerContract keeps access alive after a reboot.
     val folderPickerLauncher = rememberLauncherForActivityResult(PersistentFolderPickerContract()) { uri ->
         if (uri != null) {
@@ -130,16 +121,7 @@ fun SettingsScreen(
         preferences = viewModel.preferences,
         updateTrigger = updateTrigger,
         actions = viewModel,
-        contactPickerState = contactPickerState,
         onSelectFolder = { folderPickerLauncher.launch(null) },
-        onOpenContactsIncoming = { contactPickerViewModel.openContactPicker(ContactPickerType.INCOMING) },
-        onOpenContactsOutgoing = { contactPickerViewModel.openContactPicker(ContactPickerType.OUTGOING) },
-        onConfirmContacts = { lookupIDs ->
-            contactPickerViewModel.confirmContactPicker(lookupIDs)
-            // Refresh the screen so the new contact list information is shown immediately after confirming and closing the dialog.
-            viewModel.refresh()
-        },
-        onDismissContacts = { contactPickerViewModel.dismissContactPicker() },
         onExportLogs = { exportLogLauncher.launch("shizucallrecorder_bug_report.log") },
         modifier = modifier
     )
@@ -151,12 +133,7 @@ fun SettingsScreen(
  * @param preferences            The [AppPreferences] instance to read data from.
  * @param updateTrigger          Trigger value to force/detect recomposition when settings change.
  * @param actions                Implementation of [SettingsActions] to handle user interaction.
- * @param contactPickerState     Current state of the contact picker dialog.
  * @param onSelectFolder         Called when the user taps the recording-folder row.
- * @param onOpenContactsIncoming Called to open picker for incoming contacts.
- * @param onOpenContactsOutgoing Called to open picker for outgoing contacts.
- * @param onConfirmContacts      Called when contacts are confirmed from the dialog.
- * @param onDismissContacts      Called when we want to close the dialog without confirmation/saving.
  * @param onExportLogs           Called to export diagnostic logs using SAF.
  * @param modifier               Optional size/position modifier.
  */
@@ -165,12 +142,7 @@ fun SettingsContent(
     preferences: AppPreferences,
     updateTrigger: Int,
     actions: SettingsActions,
-    contactPickerState: ContactPickerState?,
     onSelectFolder: () -> Unit,
-    onOpenContactsIncoming: () -> Unit,
-    onOpenContactsOutgoing: () -> Unit,
-    onConfirmContacts: (Set<String>) -> Unit,
-    onDismissContacts: () -> Unit,
     onExportLogs: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -201,9 +173,7 @@ fun SettingsContent(
                     preferences = preferences,
                     updateTrigger = updateTrigger,
                     actions = actions,
-                    onSelectFolder = onSelectFolder,
-                    onOpenContactsIncoming = onOpenContactsIncoming,
-                    onOpenContactsOutgoing = onOpenContactsOutgoing
+                    onSelectFolder = onSelectFolder
                 )
             }
             item { AudioSection(preferences, updateTrigger, actions) }
@@ -212,20 +182,6 @@ fun SettingsContent(
             item { DebugSection(preferences, updateTrigger, actions, onExportLogs) }
             item {  } // extra padding at bottom
         }
-    }
-
-    // The contact-picker dialog sits on top of the settings content.
-    contactPickerState?.let { picker ->
-        ContactSelectionDialog(
-            title = when (picker.type) {
-                ContactPickerType.INCOMING -> stringResource(R.string.settings_select_contacts_incoming)
-                ContactPickerType.OUTGOING -> stringResource(R.string.settings_select_contacts_outgoing)
-            },
-            contacts = picker.contacts,
-            initialSelection = picker.selectedContactsLookupId,
-            onConfirm = onConfirmContacts,
-            onDismiss = onDismissContacts
-        )
     }
 }
 
@@ -335,7 +291,6 @@ private fun VisualSection(preferences: AppPreferences, updateTrigger: Int, actio
     val currentThemeMode = remember(updateTrigger) { preferences.getThemeMode() }
     val isDynamicColorEnabled = remember(updateTrigger) { preferences.isDynamicColorEnabled() }
     val isShowToastsEnabled = remember(updateTrigger) { preferences.isShowToastsEnabled() }
-    val isRecordingOverlayEnabled = remember(updateTrigger) { preferences.isOverlayEnabled() }
     val context = LocalContext.current
     val resources = LocalResources.current
 
@@ -407,22 +362,6 @@ private fun VisualSection(preferences: AppPreferences, updateTrigger: Int, actio
             label           = stringResource(R.string.settings_show_toasts),
             checked         = isShowToastsEnabled,
             onCheckedChange = { actions.setShowToastsEnabled(it) }
-        )
-        ToggleListItem(
-            label = stringResource(R.string.settings_overlay_title),
-            description = stringResource(R.string.settings_overlay_subtitle),
-            checked = isRecordingOverlayEnabled,
-            onCheckedChange = { enabled ->
-                if (enabled && !PermissionChecks.hasOverlayPermission(context)) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        "package:${context.packageName}".toUri()
-                    )
-                    context.startActivity(intent)
-                } else {
-                    actions.setOverlayEnabled(enabled)
-                }
-            }
         )
     }
 }
@@ -521,32 +460,25 @@ private fun SecuritySection(preferences: AppPreferences, updateTrigger: Int, act
     }
 }
 
-/** Shows the recording folder, auto-record toggles, and contact-filter options.
+/** Shows the recording folder, auto-record toggles, and cross-country/anonymous filter options.
  *
  * @param preferences              The [AppPreferences] instance to read data from.
  * @param updateTrigger          Trigger value to force recomposition when settings change.
  * @param actions                Implementation of [SettingsActions] to handle user interaction.
  * @param onSelectFolder         Called when the user taps the recording-folder row; opens the SAF picker
  *                               whose launcher lives in AppNavigation.
- * @param onOpenContactsIncoming Called when the user wants to pick incoming contacts to ignore;
- *                               opens the [ContactSelectionDialog] via [ContactPickerViewModel].
- * @param onOpenContactsOutgoing Called when the user wants to pick outgoing contacts to ignore;
- *                               opens the [ContactSelectionDialog] via [ContactPickerViewModel].
  */
 @Composable
 private fun RecordingSection(
     preferences: AppPreferences,
     updateTrigger: Int,
     actions: SettingsActions,
-    onSelectFolder: () -> Unit,
-    onOpenContactsIncoming: () -> Unit,
-    onOpenContactsOutgoing: () -> Unit
+    onSelectFolder: () -> Unit
 ) {
     val context = LocalContext.current
     
     // Evaluate these here so they are fetched on every recomposition.
     val recordingFolderLabel = remember(updateTrigger) { SafHelper.getFolderDisplayNameOrNull(context, preferences.getRecordingFolderUri()) }
-    val callDetectionMode = remember(updateTrigger) { preferences.getCallDetectionMode() }
     val recordThirdPartyCalls = remember(updateTrigger) { preferences.isRecordThirdPartyCallsEnabled() }
     val fileNameFormat = remember(updateTrigger) { preferences.getFileNameTemplate() }
     val postRecordingFileNotifications = remember(updateTrigger) { preferences.isPostRecordingFileActionsNotificationEnabled() }
@@ -555,64 +487,18 @@ private fun RecordingSection(
     val autoRecordOutgoing = remember(updateTrigger) { preferences.isAutoRecordOutgoingEnabled() }
     val ignoreAnonymousIncoming = remember(updateTrigger) { preferences.isIgnoreAnonymousIncomingEnabled() }
     val ignoreCrossCountryIncoming = remember(updateTrigger) { preferences.isIgnoreCrossCountryIncomingEnabled() }
-    val ignoreContactsModeIncoming = remember(updateTrigger) { preferences.getIgnoreContactsModeIncoming() }
-    val ignoreContactsModeOutgoing = remember(updateTrigger) { preferences.getIgnoreContactsModeOutgoing() }
     val ignoreCrossCountryOutgoing = remember(updateTrigger) { preferences.isIgnoreCrossCountryOutgoingEnabled() }
-    val ignoredContactsIncomingCount = remember(updateTrigger) { preferences.getIgnoredContactsIncoming().size }
-    val ignoredContactsOutgoingCount = remember(updateTrigger) { preferences.getIgnoredContactsOutgoing().size }
 
     var showFileNameFormatDialog by remember { mutableStateOf(false) }
 
     SettingsSection(title = stringResource(R.string.settings_section_recording)) {
-        val detectionOptions = CallDetectionMode.entries.map { mode ->
-            OptionItem(
-                key = mode.key,
-                label = stringResource(mode.titleResId),
-                description = stringResource(mode.descriptionResId),
-                // Automatically grays out option if the user device's OS API level is incompatible
-                enabled = mode.isSupportedOnCurrentApi()
-            )
-        }
-
-        M3DropdownField(
-            label = stringResource(R.string.settings_call_detection_method),
-            selected = detectionOptions.find { it.key == callDetectionMode.key } ?: detectionOptions.first(),
-            options = detectionOptions,
-            onOptionSelected = { selectedItem ->
-                val chosenMode = CallDetectionMode.fromKey(selectedItem.key)
-                actions.setCallDetectionMode(chosenMode)
-            },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+        // InCallService is the only detection mode (Android 12+), so the third-party toggle shows unconditionally.
+        ToggleListItem(
+            label           = stringResource(R.string.settings_record_third_party_calls),
+            description     = stringResource(R.string.settings_record_third_party_calls_description),
+            checked         = recordThirdPartyCalls,
+            onCheckedChange = { actions.setRecordThirdPartyCalls(it) }
         )
-
-        AnimatedContent(
-            targetState = callDetectionMode,
-            transitionSpec = {
-                val enterTransition = fadeIn(tween(300)) + expandVertically(tween(300))
-                val exitTransition = fadeOut(tween(250)) + shrinkVertically(tween(250))
-
-                enterTransition togetherWith exitTransition
-            },
-            label = "CallDetectionModeSettingsTransition"
-        ) { targetMode ->
-            when (targetMode) {
-                CallDetectionMode.InCallService -> {
-                    ToggleListItem(
-                        label           = stringResource(R.string.settings_record_third_party_calls),
-                        description     = stringResource(R.string.settings_record_third_party_calls_description),
-                        checked         = recordThirdPartyCalls,
-                        onCheckedChange = { actions.setRecordThirdPartyCalls(it) }
-                    )
-                }
-                CallDetectionMode.PhoneState -> {
-                    WarningCard(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        title = stringResource(R.string.settings_call_detection_method_warning_title),
-                        message = stringResource(R.string.call_detection_mode_phonestate_limited_support)
-                    )
-                }
-            }
-        }
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp)
 
@@ -706,13 +592,6 @@ private fun RecordingSection(
                     onCheckedChange = { actions.setIgnoreCrossCountryIncoming(it) },
                     enabled         = ignoreAnonymousIncoming
                 )
-                IgnoreContactsOptions(
-                    label           = stringResource(R.string.settings_ignore_contacts_incoming),
-                    selectedEnum     = ignoreContactsModeIncoming,
-                    selectedCount    = ignoredContactsIncomingCount,
-                    onSelected      = { actions.setIgnoreContactsModeIncoming(it) },
-                    onSelectContacts = onOpenContactsIncoming
-                )
             }
         }
 
@@ -744,13 +623,6 @@ private fun RecordingSection(
                     label           = stringResource(R.string.settings_ignore_cross_country_outgoing),
                     checked         = ignoreCrossCountryOutgoing,
                     onCheckedChange = { actions.setIgnoreCrossCountryOutgoing(it) }
-                )
-                IgnoreContactsOptions(
-                    label           = stringResource(R.string.settings_ignore_contacts_outgoing),
-                    selectedEnum     = ignoreContactsModeOutgoing,
-                    selectedCount    = ignoredContactsOutgoingCount,
-                    onSelected      = { actions.setIgnoreContactsModeOutgoing(it) },
-                    onSelectContacts = onOpenContactsOutgoing
                 )
             }
         }
@@ -1038,89 +910,6 @@ private fun SettingsSection(title: String, content: @Composable ColumnScope.() -
 }
 
 /**
- * A radio-button group for choosing which contacts to ignore.
- * When "selected" is active, shows a text field and a "Pick Contacts" button.
- *
- * @param label           Label shown above the radio buttons.
- * @param selectedEnum     The currently active mode ("none", "all", or "selected").
- * @param selectedCount    The number of contacts currently selected
- * @param onSelected      Called with the new active mode when the user taps a radio button.
- * @param onSelectContacts Called when the user taps the "Select Contacts" button; opens the
- *                        [ContactSelectionDialog] via [ContactPickerViewModel].
- */
-@Composable
-private fun IgnoreContactsOptions(
-    label: String,
-    selectedEnum: AppPreferences.IgnoreContactsMode,
-    selectedCount: Int,
-    onSelected: (AppPreferences.IgnoreContactsMode) -> Unit,
-    onSelectContacts: () -> Unit
-) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(
-            text  = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.secondary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        val enumEntries = AppPreferences.IgnoreContactsMode.entries
-        enumEntries.forEach { ignoreContactMode ->
-            val isCurrentlySelected = (selectedEnum == ignoreContactMode)
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // This make the box/text next to the radio button selectable, not just the button itself, which is more user-friendly.
-                    .minimumInteractiveComponentSize()
-                    .selectable(
-                        selected = isCurrentlySelected,
-                        onClick = { onSelected(ignoreContactMode) },
-                        role = Role.RadioButton
-                    )
-                    .semantics(mergeDescendants = true) {
-                    }
-                    .padding(vertical = 4.dp)
-            ) {
-                RadioButton(selected = isCurrentlySelected, onClick = null)
-                Text(
-                    text = when (ignoreContactMode) {
-                        AppPreferences.IgnoreContactsMode.NONE -> stringResource(R.string.settings_ignore_contacts_none)
-                        AppPreferences.IgnoreContactsMode.ALL -> stringResource(R.string.settings_ignore_contacts_all)
-                        AppPreferences.IgnoreContactsMode.SELECTED   -> stringResource(R.string.settings_ignore_contacts_selected)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
-            }
-        }
-        AnimatedVisibility(
-            visible = selectedEnum == AppPreferences.IgnoreContactsMode.SELECTED,
-            enter = fadeIn(animationSpec = tween(400)) +
-                    expandVertically(
-                        animationSpec = tween(400, easing = LinearOutSlowInEasing),
-                        expandFrom = Alignment.Top
-                    ),
-            exit = fadeOut(animationSpec = tween(300)) +
-                    shrinkVertically(
-                        animationSpec = tween(300, easing = LinearOutSlowInEasing),
-                        shrinkTowards = Alignment.Top
-                    )
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick  = onSelectContacts,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .fillMaxWidth(),
-                shape = MaterialTheme.shapes.small
-            ) { Text(stringResource(R.string.settings_select_contacts, selectedCount)) }
-        }
-    }
-}
-
-/**
  * A red warning card used to highlight important information or potential issues in the settings.
  * @param message The main warning message to display.
  * @param modifier Modifier for styling the card.
@@ -1219,8 +1008,6 @@ private fun SettingsScreenPreview() {
             override fun setIgnoreAnonymousIncoming(enabled: Boolean) {}
             override fun setIgnoreCrossCountryIncoming(enabled: Boolean) {}
             override fun setIgnoreCrossCountryOutgoing(enabled: Boolean) {}
-            override fun setIgnoreContactsModeIncoming(modeEnum: AppPreferences.IgnoreContactsMode) {}
-            override fun setIgnoreContactsModeOutgoing(modeEnum: AppPreferences.IgnoreContactsMode) {}
             override fun setAudioSource(source: String) {}
             override fun setAudioCodec(codec: String) {}
             override fun setAudioBitRate(bitRate: Int) {}
@@ -1242,7 +1029,6 @@ private fun SettingsScreenPreview() {
             override fun setCallDetectionMode(mode: CallDetectionMode) {}
             override fun setRecordThirdPartyCalls(enabled: Boolean) {}
             override fun setPostRecordingFileNotification(enabled: Boolean) {}
-            override fun setOverlayEnabled(enabled: Boolean) {}
         }
 
         // File name template selection dialog
@@ -1252,12 +1038,7 @@ private fun SettingsScreenPreview() {
             preferences = dummyPreferences,
             updateTrigger = 0,
             actions = dummyActions,
-            contactPickerState = null,
             onSelectFolder = {},
-            onOpenContactsIncoming = {},
-            onOpenContactsOutgoing = {},
-            onConfirmContacts = {},
-            onDismissContacts = {},
             onExportLogs = {}
         )
     }

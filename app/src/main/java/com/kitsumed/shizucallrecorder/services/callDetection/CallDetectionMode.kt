@@ -8,12 +8,9 @@
 
 package com.kitsumed.shizucallrecorder.services.callDetection
 
-import android.Manifest
 import android.os.Build
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ImportantDevices
-import androidx.compose.material.icons.filled.Phone
 import com.kitsumed.shizucallrecorder.R
 import com.kitsumed.shizucallrecorder.system.permissions.AppPermission
 import com.kitsumed.shizucallrecorder.system.permissions.EscalationStep
@@ -37,29 +34,6 @@ enum class CallDetectionMode(
     val componentClassName: String,
     val requiredPermissions: Set<AppPermission> = emptySet()
 ) {
-    PhoneState(
-        key = "PhoneState",
-        minApi = Build.VERSION_CODES.R, // Android 11 (API 30)
-        maxApi = Int.MAX_VALUE,
-        titleResId = R.string.call_detection_mode_phonestate_title,
-        descriptionResId = R.string.call_detection_mode_phonestate_description,
-        // Use a raw string literal to prevent crash with compose preview, it does not support ::class.java.name
-        componentClassName = "com.kitsumed.shizucallrecorder.services.callDetection.phoneState.PhoneStateReceiver",
-        requiredPermissions = setOf(
-            AppPermission.Runtime(
-                manifestString = Manifest.permission.READ_PHONE_STATE,
-                titleResId = R.string.permission_phone_state_label,
-                descriptionResId = R.string.permission_phone_state_description,
-                icon = Icons.Default.Phone
-            ),
-            AppPermission.Runtime(
-                manifestString = Manifest.permission.READ_CALL_LOG,
-                titleResId = R.string.permission_call_log_label,
-                descriptionResId = R.string.permission_call_log_description,
-                icon = Icons.Default.History
-            ),
-        )
-    ),
     InCallService(
         key = "InCallService",
         minApi = Build.VERSION_CODES.S, // Android 12 (API 31), added AppOps permission check, a single OR statement
@@ -111,12 +85,8 @@ enum class CallDetectionMode(
          * Resolves the proper (best) default mode based on the Android version of the device.
          */
         fun getDefaultModeForDevice(): CallDetectionMode {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // Android 12+, prefer InCallService, more reliable, more data available.
-                CallDetectionMode.InCallService
-            } else {
-                CallDetectionMode.PhoneState
-            }
+            // InCallService is the only supported detection mode (minSdk 31 / Android 12+).
+            return CallDetectionMode.InCallService
         }
     }
 }

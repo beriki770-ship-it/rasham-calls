@@ -73,8 +73,6 @@ class RecordingForegroundService : Service() {
 
     private lateinit var notificationHelper: RecordingNotificationHelper
 
-    private lateinit var overlayController: RecordingOverlayController
-
     /** IPC stub to the privileged ShellService running in the shell process. */
     private var shellService: IShellService? = null
 
@@ -95,7 +93,6 @@ class RecordingForegroundService : Service() {
         super.onCreate()
         notificationHelper = RecordingNotificationHelper(this)
         notificationHelper.createNotificationChannels()
-        overlayController = RecordingOverlayController(this)
 
         appPreferences = AppPreferences(this)
 
@@ -106,7 +103,6 @@ class RecordingForegroundService : Service() {
                 if (oldState != newState) {
                     updateNotification()
                     notificationHelper.handleStateChangeToasts(oldState, newState)
-                    overlayController.showOverlay(newState)
                     oldState = newState
                 }
             }
@@ -273,7 +269,6 @@ class RecordingForegroundService : Service() {
         // This is the guaranteed last callback before the service process is cleaned up.
         AppLogger.v( "RecordingForegroundService is destroying... Ensuring cleanup...")
         serviceScope.cancel()
-        overlayController.hideOverlay()
         stopRecordingSessionAndService()
         shizukuManager.unbind()
         if (appPreferences.isShizukuAutoManageEnabled() && !appPreferences.isShizukuKeepAliveEnabled()) {

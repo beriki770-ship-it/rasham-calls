@@ -10,14 +10,11 @@ package com.kitsumed.shizucallrecorder.services
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.provider.ContactsContract
 import com.kitsumed.shizucallrecorder.data.AppPreferences
 import com.kitsumed.shizucallrecorder.data.call.CallDirection
 import com.kitsumed.shizucallrecorder.data.call.EnrichedCallData
 import com.kitsumed.shizucallrecorder.data.call.RawCallData
 import com.kitsumed.shizucallrecorder.services.recording.RecordingForegroundService
-import com.kitsumed.shizucallrecorder.system.permissions.PermissionChecks
 import com.kitsumed.shizucallrecorder.utils.AppLogger
 import com.kitsumed.shizucallrecorder.utils.PhoneNumberManager
 import com.kitsumed.shizucallrecorder.utils.SponsorNotificationHelper
@@ -119,8 +116,8 @@ class RecordingDecisionEngine private constructor(context: Context) {
         val isAnonymous = metadata.normalisedPhoneNumber.isBlank()
 
         return when (metadata.direction) {
-            CallDirection.INCOMING -> evaluateIncomingCall(metadata, metadata.normalisedPhoneNumber, isAnonymous)
-            CallDirection.OUTGOING -> evaluateOutgoingCall(metadata, metadata.normalisedPhoneNumber)
+            CallDirection.INCOMING -> evaluateIncomingCall(metadata, isAnonymous)
+            CallDirection.OUTGOING -> evaluateOutgoingCall(metadata)
         }
     }
 
@@ -131,11 +128,9 @@ class RecordingDecisionEngine private constructor(context: Context) {
      * - Auto-record enabled for incoming calls
      * - Anonymous call ignoring
      * - Cross-country call ignoring
-     * - Contact filter
      */
     private fun evaluateIncomingCall(
         metadata: EnrichedCallData,
-        normalisedNumber: String,
         isAnonymous: Boolean
     ): Boolean {
         if (!appPreferences.isAutoRecordIncomingEnabled()) {
@@ -153,16 +148,6 @@ class RecordingDecisionEngine private constructor(context: Context) {
             return false
         }
 
-        if (shouldIgnoreContact(
-            normalisedNumber,
-            appPreferences.getIgnoreContactsModeIncoming(),
-            appPreferences.getIgnoredContactsIncoming()
-        )
-        ) {
-            AppLogger.i( "Ignoring incoming call: contact filter matched")
-            return false
-        }
-
         return true
     }
 
@@ -172,11 +157,9 @@ class RecordingDecisionEngine private constructor(context: Context) {
      * Checks:
      * - Auto-record enabled for outgoing calls
      * - Cross-country call ignoring
-     * - Contact filter
      */
     private fun evaluateOutgoingCall(
-        metadata: EnrichedCallData,
-        normalisedNumber: String
+        metadata: EnrichedCallData
     ): Boolean {
         if (!appPreferences.isAutoRecordOutgoingEnabled()) {
             AppLogger.i( "Auto-record for outgoing call is disabled")
@@ -188,93 +171,7 @@ class RecordingDecisionEngine private constructor(context: Context) {
             return false
         }
 
-        if (shouldIgnoreContact(
-            normalisedNumber,
-            appPreferences.getIgnoreContactsModeOutgoing(),
-            appPreferences.getIgnoredContactsOutgoing()
-        )
-        ) {
-            AppLogger.i( "Ignoring outgoing call: contact filter matched")
-            return false
-        }
-
         return true
-    }
-
-    /**
-     * Determines whether a call from/to a specific phone number should be ignored
-     * based on the user contact filtering preferences.
-     *
-     * @param normalisedNumber The normalized phone number to check
-     * @param mode The contact ignore mode (NONE, ALL, or SELECTED)
-     * @param ignoredContactsLookupId Set of Contacts (lookup ID) to check against (for SELECTED mode)
-     * @return true if the call should be ignored, false otherwise
-     */
-    private fun shouldIgnoreContact(
-        normalisedNumber: String,
-        mode: AppPreferences.IgnoreContactsMode,
-        ignoredContactsLookupId: Set<String>
-    ): Boolean {
-
-        // Fix error when phone number is blank: https://github.com/kitsumed/ShizuCallRecorder/issues/95
-        // For example, this could happen with third-party app that define text in the phone numbers field, these get stripped out by us
-        if (normalisedNumber.isBlank()) {
-            AppLogger.i( "Cannot determine if contact should be ignored: phone number is blank, returning false")
-            return false
-        }
-
-        val lookupUri = Uri.withAppendedPath(
-            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-            Uri.encode(normalisedNumber)
-        )
-
-        try {
-            return when (mode) {
-                AppPreferences.IgnoreContactsMode.NONE -> false
-
-                AppPreferences.IgnoreContactsMode.ALL -> {
-                    if (!PermissionChecks.hasContactsPermission(appContext)) {
-                        return false
-                    }
-                    appContext.contentResolver.query(
-                        lookupUri,
-                        arrayOf(ContactsContract.PhoneLookup._ID),
-                        null,
-                        null,
-                        null
-                    )?.use { cursor ->
-                        cursor.moveToFirst()
-                    } ?: false
-                }
-
-                AppPreferences.IgnoreContactsMode.SELECTED -> {
-                    // If no contacts are selected, we can skip the query and return false directly
-                    if (!PermissionChecks.hasContactsPermission(appContext) || ignoredContactsLookupId.isEmpty()) {
-                        return false
-                    }
-
-                    appContext.contentResolver.query(
-                        lookupUri,
-                        arrayOf(ContactsContract.PhoneLookup.LOOKUP_KEY),
-                        null,
-                        null,
-                        null
-                    )?.use { cursor ->
-                        val lookupIdIndex = cursor.getColumnIndexOrThrow(ContactsContract.PhoneLookup.LOOKUP_KEY)
-                        while (cursor.moveToNext()) {
-                            val contactLookupId = cursor.getString(lookupIdIndex)
-                            if (ignoredContactsLookupId.contains(contactLookupId)) {
-                                return true
-                            }
-                        }
-                    }
-                    false
-                }
-            }
-        } catch (e: Exception) {
-            AppLogger.e( "Error while checking contact ignore status for number: $normalisedNumber", e)
-            return false
-        }
     }
 
     /**

@@ -18,7 +18,6 @@ import com.kitsumed.shizucallrecorder.data.AppPreferences
 import com.kitsumed.shizucallrecorder.integrations.scrcpy.ScrcpyAudioCodec
 import com.kitsumed.shizucallrecorder.services.callDetection.CallDetectionMode
 import com.kitsumed.shizucallrecorder.services.callDetection.CallDetectionOrchestrator
-import com.kitsumed.shizucallrecorder.services.callDetection.phoneState.PhoneStateSessionManager
 import com.kitsumed.shizucallrecorder.utils.AppLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,8 +53,6 @@ interface SettingsActions {
     fun setIgnoreAnonymousIncoming(enabled: Boolean)
     fun setIgnoreCrossCountryIncoming(enabled: Boolean)
     fun setIgnoreCrossCountryOutgoing(enabled: Boolean)
-    fun setIgnoreContactsModeIncoming(modeEnum: AppPreferences.IgnoreContactsMode)
-    fun setIgnoreContactsModeOutgoing(modeEnum: AppPreferences.IgnoreContactsMode)
     fun setAudioSource(source: String)
     fun setAudioCodec(codec: String)
     fun setAudioBitRate(bitRate: Int)
@@ -77,7 +74,6 @@ interface SettingsActions {
     fun setCallDetectionMode(mode: CallDetectionMode)
     fun setRecordThirdPartyCalls(enabled: Boolean)
     fun setPostRecordingFileNotification(enabled: Boolean)
-    fun setOverlayEnabled(enabled: Boolean)
 }
 
 /**
@@ -200,26 +196,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      */
     override fun setIgnoreCrossCountryOutgoing(enabled: Boolean) {
         preferences.setIgnoreCrossCountryOutgoingEnabled(enabled)
-        refresh()
-    }
-
-    /**
-     * Sets which incoming contacts to ignore.
-     *
-     * @param modeEnum The [AppPreferences.IgnoreContactsMode] enum value to set.
-     */
-    override fun setIgnoreContactsModeIncoming(modeEnum: AppPreferences.IgnoreContactsMode) {
-        preferences.setIgnoreContactsModeIncoming(modeEnum)
-        refresh()
-    }
-
-    /**
-     * Sets which outgoing contacts to ignore.
-     *
-     * @param modeEnum The [AppPreferences.IgnoreContactsMode] enum value to set.
-     */
-    override fun setIgnoreContactsModeOutgoing(modeEnum: AppPreferences.IgnoreContactsMode) {
-        preferences.setIgnoreContactsModeOutgoing(modeEnum)
         refresh()
     }
 
@@ -380,14 +356,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * @param action The type of simulated call event to fire (see [DebugAction]).
      */
     override fun triggerDebugAction(action: DebugAction) {
-        viewModelScope.launch {
-            val actionType = when (action) {
-                DebugAction.IDLE     -> PhoneStateSessionManager.ACTION_DEBUG_IDLE
-                DebugAction.RINGING  -> PhoneStateSessionManager.ACTION_DEBUG_RINGING
-                DebugAction.OFFHOOK  -> PhoneStateSessionManager.ACTION_DEBUG_OFFHOOK
-            }
-            PhoneStateSessionManager.getInstance(appContext).handleDebugAction(actionType)
-        }
+        // Call-state simulation was removed together with the PhoneState detection mode.
+        // The debug action grid is kept for now and will be removed in the later debug-section pass.
+        AppLogger.w( "Debug call simulation is unavailable: PhoneState detection mode was removed. Ignored action: $action")
     }
 
     /**
@@ -425,11 +396,4 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         refresh()
     }
 
-    /**
-     * Enables or disables the floating overlay that allows users to control recording while in a call.
-     */
-    override fun setOverlayEnabled(enabled: Boolean) {
-        preferences.setOverlayEnabled(enabled)
-        refresh()
-    }
 }
